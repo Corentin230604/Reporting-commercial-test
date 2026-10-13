@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Link, Report } from '../../shared/model.ts';
 import { fetchReport, fileUrl } from '../api.ts';
 import { sectionColor } from '../brand.ts';
@@ -26,17 +26,47 @@ export function Viewer() {
 
   if (error) return <div className="empty" style={{ margin: 40 }}>{error}</div>;
   if (!report) return <div className="viewer"><div className="viewer-main"><div className="bar indeterminate" style={{ width: 200 }}><i /></div></div></div>;
-  return <Presentation report={report} clientMode={clientMode} />;
+  return <RoutedPresentation report={report} clientMode={clientMode} />;
 }
 
-function indexFromHash(n: number): number {
-  const v = Number(window.location.hash.replace('#', ''));
+function RoutedPresentation({ report, clientMode }: { report: Report; clientMode: boolean }) {
+  const navigate = useNavigate();
+  return (
+    <Presentation
+      report={report}
+      clientMode={clientMode}
+      onHome={() => navigate('/')}
+      onExportPdf={() => {
+        window.open(`/r/${report.id}/print`, '_blank', 'noopener');
+      }}
+      shareUrl={`${window.location.origin}/r/${report.id}?client`}
+    />
+  );
+}
+
+/** Ancre d'URL : « <préfixe><numéro de slide> », ex. #12 ou #abc-12. */
+function indexFromHash(n: number, prefix: string): number {
+  const h = window.location.hash.replace('#', '');
+  if (!h.startsWith(prefix)) return 0;
+  const v = Number(h.slice(prefix.length));
   return Number.isInteger(v) && v >= 1 && v <= n ? v - 1 : 0;
 }
 
-function Presentation({ report, clientMode }: { report: Report; clientMode: boolean }) {
+export interface PresentationProps {
+  report: Report;
+  clientMode: boolean;
+  /** Retour à la liste des reportings (absent : bouton masqué). */
+  onHome?: () => void;
+  /** Export PDF ; peut renvoyer un message à afficher. */
+  onExportPdf?: () => Promise<string | void> | void;
+  /** Lien à copier pour le client (absent : bouton masqué). */
+  shareUrl?: string;
+  hashPrefix?: string;
+}
+
+export function Presentation({ report, clientMode, onHome, onExportPdf, shareUrl, hashPrefix = '' }: PresentationProps) {
   const total = report.slides.length;
-  const [index, setIndex] = useState(() => indexFromHash(total));
+  const [index, setIndex] = useState(() => indexFromHash(total, hashPrefix));
   const [playing, setPlaying] = useState(false);
   const [replay, setReplay] = useState(0);
   const [overview, setOverview] = useState(false);
@@ -65,7 +95,11 @@ function Presentation({ report, clientMode }: { report: Report; clientMode: bool
   useEffect(() => {
     setPlaying(false);
     const r = requestAnimationFrame(() => requestAnimationFrame(() => setPlaying(true)));
-    history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${index + 1}`);
+    try {
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${hashPrefix}${index + 1}`);
+    } catch {
+      /* historique indisponible (page intégrée) */
+    }
     // Précharge les images des slides voisines.
     for (const s of [report.slides[index + 1], report.slides[index - 1]]) {
       s?.elements.forEach((e) => e.type === 'image' && (new Image().src = fileUrl(report.id, e.src)));
@@ -74,10 +108,10 @@ function Presentation({ report, clientMode }: { report: Report; clientMode: bool
   }, [index, replay, report]);
 
   useEffect(() => {
-    const onHash = () => setIndex(indexFromHash(total));
+    const onHash = () => setIndex(indexFromHash(total, hashPrefix));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [total]);
+  }, [total, hashPrefix]);
 
   // Mise à l'échelle de la slide dans l'espace disponible.
   useLayoutEffect(() => {
@@ -153,7 +187,7 @@ function Presentation({ report, clientMode }: { report: Report; clientMode: bool
   }), [playing, navigate, report.id]);
 
   const copyLink = async () => {
-    const url = `${window.location.origin}/r/${report.id}?client`;
+    const url = shareUrl ?? window.location.href;
     try {
       await navigator.clipboard.writeText(url);
       setToast('Lien client copié dans le presse-papiers');
@@ -169,8 +203,8 @@ function Presentation({ report, clientMode }: { report: Report; clientMode: bool
   return (
     <div className={`viewer ${fullscreen ? 'fullscreen' : ''}`}>
       <header className="app-header">
-        {!clientMode && (
-          <RouterLink className="btn icon ghost" to="/" title="Tous les reportings"><IconHome /></RouterLink>
+        {!clientMode && onHome && (
+          <button className="btn icon ghost" onClick={onHome} title="Tous les reportings"><IconHome /></button>
         )}
         <OxigenLogo height={26} />
         <span className="sep hide-sm" />
@@ -182,8 +216,14 @@ function Presentation({ report, clientMode }: { report: Report; clientMode: bool
         <button className="btn ghost hide-sm" onClick={() => setReplay((n) => n + 1)} title="Rejouer l’animation (R)"><IconReplay /></button>
         <button className="btn" onClick={() => setOverview(true)} title="Vue d’ensemble (G)"><IconGrid /><span className="hide-sm">Sommaire</span></button>
         <button className="btn hide-sm" onClick={toggleFullscreen} title="Plein écran (F)"><IconExpand /><span>Présenter</span></button>
-        {!clientMode && <button className="btn hide-sm" onClick={copyLink} title="Copier le lien à envoyer au client"><IconLink /><span>Lien client</span></button>}
-        <a className="btn accent" href={`/r/${report.id}/print`} target="_blank" rel="noopener"><IconPdf /><span className="hide-sm">Export PDF</span></a>
+        {!clientMode && shareUrl && <button className="btn hide-sm" onClick={copyLink} title="Copier le lien à envoyer au client"><IconLink /><span>Lien client</span></button>}
+        {onExportPdf && <button className="btn accent" onClick={async () => {
+          const msg = await onExportPdf();
+          if (msg) {
+            setToast(msg);
+            setTimeout(() => setToast(undefined), 3200);
+          }
+        }}><IconPdf /><span className="hide-sm">Export PDF</span></button>}
       </header>
 
       <div className="viewer-main" ref={mainRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>

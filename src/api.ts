@@ -1,6 +1,14 @@
 import type { Report, ReportSummary } from '../shared/model.ts';
 
-export const fileUrl = (id: string, name: string) => `/files/${id}/${encodeURIComponent(name)}`;
+/**
+ * Emplacement des fichiers d'un reporting. Le serveur les sert sous /files ;
+ * la version hébergée sur Claude les publie à côté de la page (setFileBase).
+ */
+let fileBase = (id: string, name: string) => `/files/${id}/${encodeURIComponent(name)}`;
+export const fileUrl = (id: string, name: string) => fileBase(id, name);
+export function setFileBase(fn: (id: string, name: string) => string) {
+  fileBase = fn;
+}
 
 export async function fetchReports(): Promise<ReportSummary[]> {
   const r = await fetch('/api/reports');

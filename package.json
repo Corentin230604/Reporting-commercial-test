@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "import": "tsx server/cli-import.ts"
+    "import": "tsx server/cli-import.ts",
+    "build:artifact": "vite build -c vite.artifact.config.ts && tsx scripts/package-artifact.ts"
   },
   "dependencies": {
     "@fontsource/arimo": "^5.1.0",

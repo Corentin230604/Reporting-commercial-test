@@ -72,3 +72,13 @@ src/               application web (React + Vite)
 1. **Accès client sécurisé** : connexion ou lien protégé, un espace par client.
 2. **Graphiques natifs animés** : recréer les courbes, cascades et jauges à partir des données (au lieu des images Excel), avec survol des valeurs.
 3. **Automatisation** : import des 3 fichiers Excel, calculs (réel / budget / N-1, mois et YTD), proposition de commentaires dans le style du reporting, relecture puis publication.
+
+## Version hébergée sur Claude
+
+Le viewer peut aussi être publié comme page Claude (Artifact), sans serveur : les reportings déjà importés sont publiés à côté de la page, avec leur PDF pré-généré.
+
+```bash
+npm run build:artifact -- <id> [<id>…]   # assemble artifact-out/
+```
+
+Le PDF de chaque reporting est attendu dans `data/reports/<id>/files/reporting.pdf`, généré depuis la page d'impression (`/r/<id>/print`). Pour ajouter un mois, importer le `.pptx`, générer le PDF, puis relancer l'assemblage et republier la page.

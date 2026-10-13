@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Home } from './pages/Home.tsx';
 import { Print } from './pages/Print.tsx';
 import { Viewer } from './pages/Viewer.tsx';
+import './fonts.css';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(
