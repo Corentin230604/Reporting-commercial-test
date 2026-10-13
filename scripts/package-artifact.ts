@@ -35,6 +35,21 @@ html, body, #root { height: 100%; }</style>
 <script type="module">${js}</script>
 `;
 await writeFile(join(OUT, 'index.html'), html);
+// Variante « site web » (Netlify, OVH…) : document HTML complet.
+const standalone = `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="oxigen-mark.svg">
+${html.replace(/<div id="root">[\s\S]*$/, '')}</head>
+<body>
+<div id="root"></div>
+<script type="module">${js}</script>
+</body>
+</html>
+`;
 
 const index: ReportSummary[] = [];
 for (const id of ids) {
@@ -55,4 +70,19 @@ for (const id of ids) {
 }
 index.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 await writeFile(join(OUT, 'reports', 'index.json'), JSON.stringify(index));
+// Copie « site web » : même contenu, page HTML complète.
+await rm('site-out', { recursive: true, force: true });
+await mkdir('site-out', { recursive: true });
+await writeFile(join('site-out', 'index.html'), standalone);
+await copyDir(join(OUT, 'reports'), join('site-out', 'reports'));
+await copyFile('public/oxigen-mark.svg', join('site-out', 'oxigen-mark.svg'));
+
+async function copyDir(from: string, to: string): Promise<void> {
+  await mkdir(to, { recursive: true });
+  for (const e of await readdir(from, { withFileTypes: true })) {
+    if (e.isDirectory()) await copyDir(join(from, e.name), join(to, e.name));
+    else await copyFile(join(from, e.name), join(to, e.name));
+  }
+}
+
 console.log(`Page assemblée dans ${OUT}/ (${ids.length} reporting${ids.length > 1 ? 's' : ''})`);

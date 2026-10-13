@@ -40,11 +40,23 @@ function idFromHash(): string | undefined {
 }
 
 async function exportPdf(report: Report): Promise<string | void> {
-  const downloads = await runtime()?.use('downloads').catch(() => null);
-  if (!downloads) return 'Le téléchargement n’est pas disponible dans cette vue.';
-  const res = await fetch(`reports/${report.id}/reporting.pdf`);
-  if (!res.ok) return 'Le PDF de ce reporting n’est pas encore disponible.';
+  const url = `reports/${report.id}/reporting.pdf`;
   const filename = `${report.meta.client} - ${report.meta.title} - ${report.meta.period}.pdf`.replace(/[\\/:*?"<>|]/g, '');
+  const rt = runtime();
+  if (!rt) {
+    // Site web classique : simple lien de téléchargement.
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+  const downloads = await rt.use('downloads').catch(() => null);
+  if (!downloads) return 'Le téléchargement n’est pas disponible dans cette vue.';
+  const res = await fetch(url);
+  if (!res.ok) return 'Le PDF de ce reporting n’est pas encore disponible.';
   try {
     await downloads.save({ filename, data: await res.blob() });
     return 'PDF téléchargé';
